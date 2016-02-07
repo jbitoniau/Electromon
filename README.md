@@ -22,4 +22,7 @@ sudo apt-get install python2.7-dev
 sudo apt-get install libffi-dev
 sudo apt-get install libssl-dev
 pip install PyOpenSSL
+
+# Because of virtualenv, need to install RPi stuff there too
+pip install RPi.GPIO
 ```
