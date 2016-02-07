@@ -5,23 +5,32 @@ import gspread
 import json
 import random
 from oauth2client.client import SignedJwtAssertionCredentials
-from threading import Thread
+import threading
 
-class FlashDetector(Thread):
+class FlashDetector(threading.Thread):
 
 	def __init__(self, flashTimes):
-		Thread.__init__(self)
+		threading.Thread.__init__(self)
 		self.flashTimes = flashTimes
+		self.lock = threading.Lock()
 		
 	def run(self):
-		for val in range(100):
+		while ( True ):
 			minMs = 500
 			maxMs = 4000
 			v = random.randint(minMs, maxMs) / 1000
 			time.sleep(v)
 			nowTime = datetime.datetime.now()
-			print ">>>>" + nowTime.strftime('%d/%m/%Y %H:%M:%S')
-			self.flashTimes.append( nowTime )
+			print ">>>>" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S')  
+			with self.lock:
+				self.flashTimes.append( nowTime )
+
+	def flushFlashTimes(self):
+		with self.lock:
+			flashTimes = list(self.flashTimes)
+			del self.flashTimes[:]
+		return flashTimes
+				
 
 class PerTimeSliceFlashCounter():
 
@@ -81,75 +90,49 @@ class FlashCountSender():
 		count = flashCount[1]
 		self.worksheet.append_row( [dateTimeString, count] )
 
-def connectAndDoStuff():
 
-	json_key = json.load(open('Electromon-9ec05e526bcd.json'))
-	scope = ['https://spreadsheets.google.com/feeds']
-	credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
-	gc = gspread.authorize(credentials)
-	wks = gc.open("Electromon").sheet1
-	#wks.update_acell('B2', "it's down there somewhere, let me take another look.")
+class Electromon():
 
+	def __init__(self):
+		self.flashTimes = []
+		self.flashDector = FlashDetector(self.flashTimes)
+		self.flashCounter = PerTimeSliceFlashCounter(5)
+		self.flashCountSender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon");
 
-	#val = int( wks.acell('B1').value )
-	#print val
-	#val = val + 1
-	#wks.update_acell('B1', str( val ))
-
-	#c = wks.row_count
-	#print "row count " + str(c)
-
-	#wks.add_rows(2)
-	#for val in range(5):
-	#	wks.append_row( ['blabla', datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S'), val ] )
-	
-	# 1:28
-	#for i in range(100):
-	#	wks.update_cell( i+2, 1, datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S') )
-
-	# 0:40
-	a = []
-	for i in range(1, 100):
-		c = wks.cell( i, 1 )
-		c.value = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-		a.append( c )
-	wks.update_cells( a )
-
-	# 0:40
-	#a = []
-	#for i in range(1, 100):
-	#	c = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-	#	a.append( c )
-	#wks.append_row( a )
-
-#connectAndDoStuff()
+	def run(self):
+		print 'Electromon!'
+		self.flashDector.start()		# Start the detector thread
+		while ( True ):
+			flashTimes = self.flashDector.flushFlashTimes()
+			if ( len(flashTimes)>0 ):
+				flashCounts = self.flashCounter.processDateTimes( flashTimes )
+				self.flashCountSender.sendFlashCounts( flashCounts )
+			time.sleep(5)
 
 
-#print "hello"
-#obj = MyClass(12)
-#obj.showStuff()
-#obj.run()
-#obj.aStaticFunc()
+electromon = Electromon()
+electromon.run()
 
-flashTimes = []
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 00) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 02) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 03) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 03, 500000 ) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 9, 999000) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 11) )
-flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 12) )
-#thread1 = FlashDetector(flashTimes)
-#thread1.start()
-#time.sleep(8)
-print 'enum'
-for i, t in enumerate(flashTimes):
-	print t.strftime('%d/%m/%Y %H:%M:%S')
-		
-counter = PerTimeSliceFlashCounter(5)
-r = counter.processDateTimes( flashTimes )
-print '=>' + str(r)
-#thread1.join()
+def tests():
+	flashTimes = []
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 00) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 02) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 03) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 03, 500000 ) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 9, 999000) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 11) )
+	flashTimes.append( datetime.datetime(2016, 02, 07, 12, 00, 12) )
+	#thread1 = FlashDetector(flashTimes)
+	#thread1.start()
+	#time.sleep(8)
+	print 'enum'
+	for i, t in enumerate(flashTimes):
+		print t.strftime('%d/%m/%Y %H:%M:%S')
+			
+	counter = PerTimeSliceFlashCounter(5)
+	r = counter.processDateTimes( flashTimes )
+	print '=>' + str(r)
+	#thread1.join()
 
-sender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon")
-sender.sendFlashCounts( r )
+	sender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon")
+	sender.sendFlashCounts( r )
