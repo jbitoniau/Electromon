@@ -7,29 +7,84 @@ import random
 from oauth2client.client import SignedJwtAssertionCredentials
 import threading
 
+import platform
+if platform.system()=='Linux':
+	import RPi.GPIO as GPIO
+
+	class GPIOTimeReader():
+
+		def __init__(self, pin):
+			print 'GPIO Time Reader!'
+			self.pin = pin
+			GPIO.setmode(GPIO.BOARD)
+
+		def readTime(self):
+			t0 = datetime.datetime.now()
+			GPIO.setup(self.pin, GPIO.OUT)
+			GPIO.output(self.pin, GPIO.LOW)
+			time.sleep(0.1)
+			GPIO.setup(self.pin, GPIO.IN)
+			while (GPIO.input(self.pin)==GPIO.LOW):
+			        time.sleep(0.05)
+			delta = datetime.datetime.now()-t0
+			return delta.total_seconds()
+
+		def cleanup(self):
+			print '!!!!!!!!!!!!!!GPIOTimeReader.cleanup'
+			GPIO.cleanup()
+
+else:
+	class GPIOTimeReader():
+
+		def __init__(self, pin):
+			print 'Fake GPIO Time Reader!'
+			self.pin = pin
+			self.times = [ 0.5, 0.6, 0.7, 0.8 ]
+			self.timeIndex = 0
+
+		def readTime(self):
+			t = self.times[self.timeIndex]
+			self.timeIndex += 1
+			if self.timeIndex>=len(self.times):
+				self.timeIndex = 0
+			time.sleep(t)
+			return t
+
+		def cleanup(self):
+			print '!!!!!!!!!!!!!!GPIOTimeReader.cleanup'
+
 class FlashDetector(threading.Thread):
 
-	def __init__(self, flashTimes):
+	def __init__(self, gpioTimeReader):
 		threading.Thread.__init__(self)
-		self.flashTimes = flashTimes
+		self.gpioTimeReader = gpioTimeReader
+		self.flashTimes = []
 		self.lock = threading.Lock()
-		
+		self.stopRequest = False
+		self.lastTimeValue = 0
+
 	def run(self):
-		while ( True ):
-			minMs = 500
-			maxMs = 4000
-			v = random.randint(minMs, maxMs) / 1000
-			time.sleep(v)
-			nowTime = datetime.datetime.now()
-			print ">>>>" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S')  
-			with self.lock:
-				self.flashTimes.append( nowTime )
+		while ( not self.stopRequest ):
+			v = self.gpioTimeReader.readTime()
+			if v<self.lastTimeValue: 
+				nowTime = datetime.datetime.now()
+				#print ">>>>" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S')  
+				with self.lock:
+					self.flashTimes.append( nowTime )
+			self.lastTimeValue = v
 
 	def flushFlashTimes(self):
 		with self.lock:
 			flashTimes = list(self.flashTimes)
 			del self.flashTimes[:]
 		return flashTimes
+
+	def cleanup(self):
+		print('!!!!!!!!!!!!!!!!cleanup in flash')
+		self.stopRequest = True
+		self.join()
+		self.gpioTimeReader.cleanup()
+		# CALLCALCLAL Cleanup on gpio
 				
 
 class PerTimeSliceFlashCounter():
@@ -94,24 +149,36 @@ class FlashCountSender():
 class Electromon():
 
 	def __init__(self):
+
+		print 'Electromon!'
+		print '==========='
+		self.gpioTimeReader = GPIOTimeReader(7)
 		self.flashTimes = []
-		self.flashDector = FlashDetector(self.flashTimes)
+		self.flashDetector = FlashDetector(self.gpioTimeReader)
 		self.flashCounter = PerTimeSliceFlashCounter(5)
 		self.flashCountSender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon");
+		self.stopRequest = False
 
 	def run(self):
-		print 'Electromon!'
-		self.flashDector.start()		# Start the detector thread
-		while ( True ):
-			flashTimes = self.flashDector.flushFlashTimes()
+		self.flashDetector.start()		# Start the detector thread
+		while ( not self.stopRequest ):
+			flashTimes = self.flashDetector.flushFlashTimes()
 			if ( len(flashTimes)>0 ):
 				flashCounts = self.flashCounter.processDateTimes( flashTimes )
 				self.flashCountSender.sendFlashCounts( flashCounts )
 			time.sleep(5)
 
+	def cleanup(self):
+		print 'CLEANUP!'
+		self.flashDetector.cleanup()
 
 electromon = Electromon()
-electromon.run()
+try:
+	electromon.run()
+finally:
+	print 'interrupted!'
+	electromon.cleanup()
+
 
 def tests():
 	flashTimes = []
