@@ -63,17 +63,30 @@ class PerTimeSliceFlashCounter():
 		
 class FlashCountSender(): 
 
-	def __init__(self ):
-		print 'hello'
+	def __init__(self, jsonFileName, worksheetName):
+		print 'Initializing sender...'
+		json_key = json.load(open(jsonFileName))
+		scope = ['https://spreadsheets.google.com/feeds']
+		credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
+		gc = gspread.authorize(credentials)
+		self.worksheet = gc.open(worksheetName).sheet1
+		print 'Sender initialized'
+
+	def sendFlashCounts( self, flashCounts ):
+		for flashCount in flashCounts:
+			self.sendFlashCount(flashCount)
+
+	def sendFlashCount( self, flashCount ):
+		dateTimeString = flashCount[0].strftime('%d/%m/%Y %H:%M:%S')
+		count = flashCount[1]
+		self.worksheet.append_row( [dateTimeString, count] )
 
 def connectAndDoStuff():
 
 	json_key = json.load(open('Electromon-9ec05e526bcd.json'))
 	scope = ['https://spreadsheets.google.com/feeds']
 	credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
-
 	gc = gspread.authorize(credentials)
-
 	wks = gc.open("Electromon").sheet1
 	#wks.update_acell('B2', "it's down there somewhere, let me take another look.")
 
@@ -137,3 +150,6 @@ counter = PerTimeSliceFlashCounter(5)
 r = counter.processDateTimes( flashTimes )
 print '=>' + str(r)
 #thread1.join()
+
+sender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon")
+sender.sendFlashCounts( r )
