@@ -20,5 +20,6 @@ pip install --upgrade oauth2client
 # so python dev headers/libs are required
 sudo apt-get install python2.7-dev
 sudo apt-get install libffi-dev
+sudo apt-get install libssl-dev
 pip install PyOpenSSL
 ```
