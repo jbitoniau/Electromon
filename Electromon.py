@@ -189,7 +189,6 @@ class FlashCountSender():
 		gc = gspread.authorize(credentials)
 		self.spreadsheet = gc.open(spreadsheetName)
 		self.worksheet = self.spreadsheet.worksheet(worksheetName)
-		self.worksheet.append_row( ['hihi', 'hoho'] )
 		print 'Sender initialized'
 
 	def sendFlashCounts( self, flashCounts ):
@@ -250,14 +249,16 @@ class Electromon():
 					sliceStartDateTime = datetime.datetime( sliceStartDate.year, sliceStartDate.month, sliceStartDate.day, sliceStartTime[0], sliceStartTime[1], sliceStartTime[2] )
 					if perTimeSliceFlashes.has_key(sliceIndex):
 						flashCounts.append( (sliceStartDateTime, perTimeSliceFlashes[sliceIndex]) ) 
+						del perTimeSliceFlashes[sliceIndex]
 					else:
 						flashCounts.append( (sliceStartDateTime, 0) ) 
 			
-				# Send flash counts
-				#self.flashCountSender.sendFlashCounts( flashCounts )
-
 				for flashCount in flashCounts:
-					print "Main:>   " + flashCount[0].strftime('%d/%m/%Y %H:%M:%S') + " => " + str(flashCount[1])
+					print "Emon:>   " + flashCount[0].strftime('%d/%m/%Y %H:%M:%S') + " => " + str(flashCount[1])
+				
+				# Send flash counts
+				self.flashCountSender.sendFlashCounts( flashCounts )
+
 				lastTimeSliceIndex = timeSliceIndex
 
 	def cleanup(self):
