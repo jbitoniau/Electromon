@@ -62,8 +62,10 @@ class FlashLogger():
 	def run(self):
 		while ( True ):
 			v = self.gpioTimeReader.readTime()
-			td = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S') 
-			text = td + ";" + str(v)
+			#td = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+			td = datetime.datetime.now()
+			std = str(td.year) + ";" + str(td.month) + ";" + str(td.day) + ";" + str(td.hour) + ";" + str(td.minute) + ";" + str(td.second) + ";" + str(td.microsecond)
+			text = std + ";;" + str(v)
 			print text
 			self.file.write( text + '\n' )
 			
