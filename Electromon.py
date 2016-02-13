@@ -30,14 +30,14 @@ if platform.system()=='Linux':
 			return delta.total_seconds()
 
 		def cleanup(self):
-			print '!!!!!!!!!!!!!!GPIOTimeReader.cleanup'
+			print '!!!!!!!!!!!!!!cleanup'
 			GPIO.cleanup()
 
 else:
 	class GPIOTimeReader():
 
 		def __init__(self, pin):
-			print 'Fake GPIO Time Reader!'
+			print 'Mock Time Reader!'
 			self.pin = pin
 			self.times = [ 0.5, 0.6, 0.7, 0.8 ]
 			self.timeIndex = 0
@@ -51,7 +51,28 @@ else:
 			return t
 
 		def cleanup(self):
-			print '!!!!!!!!!!!!!!GPIOTimeReader.cleanup'
+			print '!!!!!!!!!!!!!!cleanup'
+			
+class FlashLogger():
+
+	def __init__(self, gpioTimeReader, filename):
+		self.gpioTimeReader = gpioTimeReader
+		self.file = open(filename, "w")
+
+	def run(self):
+		while ( True ):
+			v = self.gpioTimeReader.readTime()
+			td = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S') 
+			text = td + ";" + str(v)
+			print text
+			self.file.write( text + '\n' )
+			
+			#t = time.strptime(td, '%d/%m/%Y %H:%M:%S') 
+			#print str(t)
+
+	def cleanup(self):
+		self.file.close()
+		self.gpioTimeReader.cleanup()
 
 class FlashDetector(threading.Thread):
 
@@ -84,8 +105,6 @@ class FlashDetector(threading.Thread):
 		self.stopRequest = True
 		self.join()
 		self.gpioTimeReader.cleanup()
-		# CALLCALCLAL Cleanup on gpio
-				
 
 class PerTimeSliceFlashCounter():
 
@@ -172,13 +191,24 @@ class Electromon():
 		print 'CLEANUP!'
 		self.flashDetector.cleanup()
 
-electromon = Electromon()
-try:
-	electromon.run()
-finally:
-	print 'interrupted!'
-	electromon.cleanup()
+def main():
+	electromon = Electromon()
+	try:
+		electromon.run()
+	finally:
+		print 'interrupted!'
+		electromon.cleanup()
 
+def mainLog():
+	try:
+		gpioTimeReader = GPIOTimeReader(7)
+		flashLogger = FlashLogger(gpioTimeReader, "flashes.csv")
+		flashLogger.run()
+	finally:
+		flashLogger.cleanup()
+
+
+mainLog()
 
 def tests():
 	flashTimes = []
