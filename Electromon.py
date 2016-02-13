@@ -1,4 +1,5 @@
 import sys
+import os
 import datetime
 import time
 import gspread
@@ -39,7 +40,7 @@ else:
 		def __init__(self, pin):
 			print 'Mock Time Reader!'
 			self.pin = pin
-			self.times = [ 0.5, 0.6, 0.7, 0.8 ]
+			self.times = [ 0.5, 0.6, 0.7, 0.8, 0.55 ]
 			self.timeIndex = 0
 
 		def readTime(self):
@@ -60,6 +61,8 @@ class FlashLogger():
 		self.file = open(filename, "w")
 
 	def run(self):
+		lastv = 0
+		lastdv = 1;
 		while ( True ):
 			v = self.gpioTimeReader.readTime()
 			#td = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -68,7 +71,15 @@ class FlashLogger():
 			text = std + ";;" + str(v)
 			print text
 			self.file.write( text + '\n' )
-			
+
+			dv = v - lastv
+			if ( lastdv>0 and dv<0 ):
+				print "FLASH"
+				os.system( "aplay beep.wav" )
+
+			lastv = v
+			lastdv = dv
+
 			#t = time.strptime(td, '%d/%m/%Y %H:%M:%S') 
 			#print str(t)
 
