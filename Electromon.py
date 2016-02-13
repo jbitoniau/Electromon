@@ -3,6 +3,7 @@ import os
 import datetime
 import time
 import gspread
+import math
 import json
 import random
 from oauth2client.client import SignedJwtAssertionCredentials
@@ -40,7 +41,7 @@ else:
 		def __init__(self, pin):
 			print 'Mock Time Reader!'
 			self.pin = pin
-			self.times = [ 0.5, 0.6, 0.7, 0.8, 0.55 ]
+			self.times = [ 0.5, 0.6, 0.7, 0.8, 0.799, 0.55 ]
 			self.timeIndex = 0
 
 		def readTime(self):
@@ -61,7 +62,7 @@ class FlashLogger():
 		self.file = open(filename, "w")
 
 	def run(self):
-		lastv = 0
+		lastv = self.gpioTimeReader.readTime()
 		lastdv = 1;
 		while ( True ):
 			v = self.gpioTimeReader.readTime()
@@ -69,19 +70,23 @@ class FlashLogger():
 			td = datetime.datetime.now()
 			std = str(td.year) + ";" + str(td.month) + ";" + str(td.day) + ";" + str(td.hour) + ";" + str(td.minute) + ";" + str(td.second) + ";" + str(td.microsecond)
 			text = std + ";;" + str(v)
-			print text
 			self.file.write( text + '\n' )
 
 			dv = v - lastv
-			if ( lastdv>0 and dv<0 ):
-				print "FLASH"
-				os.system( "aplay beep.wav" )
+			diffAsPercentageOfOldValue = 0
+			if ( lastv!=0 ):
+				diffAsPercentageOfOldValue = (v-lastv) / lastv * 100
 
-			lastv = v
-			lastdv = dv
-
-			#t = time.strptime(td, '%d/%m/%Y %H:%M:%S') 
-			#print str(t)
+			print text + " lastv:" + str(lastv) + " lastdv:" + str(lastdv) + " v:" + str(v) + " dv:" + str(dv) + " diff%:" + str(diffAsPercentageOfOldValue)
+			
+			if math.fabs(diffAsPercentageOfOldValue)<2.0:
+				print "value diff not significant enough. Dropping the value"
+			else:
+				if ( lastdv>0 and dv<0 ):
+					print "FLASH"
+					os.system( "aplay beep.wav" )
+				lastv = v
+				lastdv = dv
 
 	def cleanup(self):
 		self.file.close()
