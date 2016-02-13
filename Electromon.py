@@ -87,9 +87,10 @@ class FlashDetector(threading.Thread):
 	def run(self):
 		while ( not self.stopRequest ):
 			v = self.gpioTimeReader.readTime()
+			print 'value: ' + str(v)
 			if v<self.lastTimeValue: 
 				nowTime = datetime.datetime.now()
-				#print ">>>>" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S')  
+				print "flash! #" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S')  
 				with self.lock:
 					self.flashTimes.append( nowTime )
 			self.lastTimeValue = v
