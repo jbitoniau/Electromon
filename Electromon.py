@@ -192,8 +192,13 @@ class FlashCountSender():
 		print 'Sender initialized'
 
 	def sendFlashCounts( self, flashCounts ):
-		for flashCount in flashCounts:
-			self.sendFlashCount(flashCount)
+		try:
+			for flashCount in flashCounts:
+				self.sendFlashCount(flashCount)
+		except:
+			print "Sndr: error sending " + str(len(flashCounts)) + " flashcounts"
+			return False 
+		return True
 
 	def sendFlashCount( self, flashCount ):
 		dateTimeString = flashCount[0].strftime('%d/%m/%Y %H:%M:%S')
@@ -219,6 +224,7 @@ class Electromon():
 		self.flashDetector.start()		# Start the detector thread
 		
 		perTimeSliceFlashes = {}
+		flashCounts = []				# Pending flash counts to send (a send might fail and we need to keep trying)
 		while not self.stopRequest:
 
 			time.sleep(3)
@@ -241,7 +247,7 @@ class Electromon():
 				# Go through each past time-slices (stop before the current one) and 
 				# prepare the final list of flash counts (per slice start datetime)
 				# If a slice didn't have any flash put down a zero for it
-				flashCounts = []
+				
 				sliceStartDate =   datetime.datetime.now().date()		# CRAPPY!!!
 				for sliceIndex in range(lastTimeSliceIndex, timeSliceIndex):
 					
@@ -257,7 +263,9 @@ class Electromon():
 					print "Emon:>   " + flashCount[0].strftime('%d/%m/%Y %H:%M:%S') + " => " + str(flashCount[1])
 				
 				# Send flash counts
-				self.flashCountSender.sendFlashCounts( flashCounts )
+				sentOK = self.flashCountSender.sendFlashCounts( flashCounts )
+				if sentOK:
+					flashCounts = []
 
 				lastTimeSliceIndex = timeSliceIndex
 
