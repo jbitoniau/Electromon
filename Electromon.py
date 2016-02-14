@@ -182,29 +182,49 @@ def getTimeSliceStartTime( timeSliceIndex, sliceDurationInS ):
 class FlashCountSender(): 
 
 	def __init__(self, jsonFileName, spreadsheetName, worksheetName):
-		print 'Initializing sender...'
-		json_key = json.load(open(jsonFileName))
-		scope = ['https://spreadsheets.google.com/feeds']
-		credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
-		gc = gspread.authorize(credentials)
-		self.spreadsheet = gc.open(spreadsheetName)
-		self.worksheet = self.spreadsheet.worksheet(worksheetName)
-		print 'Sender initialized'
+		self.worksheet = None
+		self.jsonFileName = jsonFileName
+		self.spreadsheetName = spreadsheetName
+		self.worksheetName = worksheetName
+		self.sendTries = 0
+		self.initialize()
+
+	def initialize(self):
+		try:
+			print 'Sndr: initializing...'
+			json_key = json.load(open(self.jsonFileName))
+			scope = ['https://spreadsheets.google.com/feeds']
+			credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
+			gc = gspread.authorize(credentials)
+			spreadsheet = gc.open(self.spreadsheetName)
+			self.worksheet = spreadsheet.worksheet(self.worksheetName)
+		except:
+			print "Sndr: initializing error!"
+			return False
+		print 'Sndr: initializing OK'
+		return True
 
 	def sendFlashCounts( self, flashCounts ):
+		self.sendTries += 1
+		# If we haven't managed to send data 5 times, we try to
+		# re-initialize the connection each time we're asked to send
+		# until it gets back on its feet
+		if self.sendTries>=5:
+			if self.initialize():
+				self.sendTries = 0
 		try:
 			for flashCount in flashCounts:
 				self.sendFlashCount(flashCount)
 		except:
 			print "Sndr: error sending " + str(len(flashCounts)) + " flashcounts"
 			return False 
+		self.sendTries = 0
 		return True
 
 	def sendFlashCount( self, flashCount ):
 		dateTimeString = flashCount[0].strftime('%d/%m/%Y %H:%M:%S')
 		count = flashCount[1]
 		self.worksheet.append_row( [dateTimeString, count] )
-
 
 class Electromon():
 
