@@ -52,46 +52,11 @@ if platform.system()=='Linux':
 			self.setOff()
 			GPIO.cleanup()
 
-	class LedBlinker(threading.Thread):
-		def __init__(self, led):
-			threading.Thread.__init__(self)
-			self.stopRequest = False
-			self.led = led
-			self.blinkDuration = -1
-			self.condition = threading.Condition()
-			self.start()
-
-		def blink(self, sec):
-			if self.blinkDuration!=-1:
-				return False
-			self.condition.acquire()
-			self.blinkDuration = sec
-			self.condition.notify()
-			self.condition.release()
-			return True
-
-		def run(self):
-			while True and not self.stopRequest:
-				self.condition.acquire()
-				if self.blinkDuration!=-1:
-					self.led.setOn()
-					time.sleep(self.blinkDuration)
-					self.led.setOff()
-					self.blinkDuration=-1
-				self.condition.wait()
-				self.condition.release()
-			
-		def cleanup(self):
-			self.stopRequest = True
-			self.blink(0)
-			self.join()
-			self.led.cleanup()
-
 else:
 	class GPIOTimeReader():
 
 		def __init__(self, pin):
-			print 'Mock Time Reader!'
+			print 'Mock Time Reader'
 			self.pin = pin
 			self.times = [ 0.5, 0.6, 0.7, 0.8, 0.799, 0.55 ]
 			self.timeIndex = 0
@@ -105,8 +70,57 @@ else:
 			return t
 
 		def cleanup(self):
-			print '!!!!!!!!!!!!!!cleanup'
+			print 'Mock Time Reader cleanup'
+
+	class GPIOLed():
+		def __init__(self, pin):
+			print "Mock LED"
 			
+		def setOn(self):
+			print '[x]'
+		
+		def setOff(self):
+			print '[ ]'
+			
+		def cleanup(self):
+			self.setOff()
+			
+	
+class LedBlinker(threading.Thread):
+	def __init__(self, led):
+		threading.Thread.__init__(self)
+		self.stopRequest = False
+		self.led = led
+		self.blinkDuration = -1
+		self.condition = threading.Condition()
+		self.start()
+
+	def blink(self, sec):
+		if self.blinkDuration!=-1:
+			return False
+		self.condition.acquire()
+		self.blinkDuration = sec
+		self.condition.notify()
+		self.condition.release()
+		return True
+
+	def run(self):
+		while True and not self.stopRequest:
+			self.condition.acquire()
+			if self.blinkDuration!=-1:
+				self.led.setOn()
+				time.sleep(self.blinkDuration)
+				self.led.setOff()
+				self.blinkDuration=-1
+			self.condition.wait()
+			self.condition.release()
+		
+	def cleanup(self):
+		self.stopRequest = True
+		self.blink(0)
+		self.join()
+		self.led.cleanup()
+
 class FlashLogger():
 
 	def __init__(self, gpioTimeReader, filename):
@@ -146,14 +160,16 @@ class FlashLogger():
 
 class FlashDetector(threading.Thread):
 
-	def __init__(self, gpioTimeReader):
+	def __init__(self, gpioTimeReader, led):
 		threading.Thread.__init__(self)
 		self.gpioTimeReader = gpioTimeReader
 		self.flashTimes = []
 		self.lock = threading.Lock()
 		self.stopRequest = False
 		self.lastTimeValue = 0
-
+		self.led = led
+		self.ledBlinker = LedBlinker(self.led)
+		
 	def run(self):
 
 		# If the difference between the current value and the previous one  
@@ -175,6 +191,7 @@ class FlashDetector(threading.Thread):
 					print "Dtor:> " + nowTime.strftime('%d/%m/%Y %H:%M:%S')
 					with self.lock:
 						self.flashTimes.append( nowTime )
+						self.ledBlinker.blink(0.2)
 					#os.system( "aplay beep.wav" )
 				lastValue = value
 				lastDelta = delta
@@ -192,6 +209,7 @@ class FlashDetector(threading.Thread):
 		self.stopRequest = True
 		self.join()
 		self.gpioTimeReader.cleanup()
+		self.ledBlinker.cleanup()
 
 
 def getTimeSliceIndex( dateTime, sliceDurationInS ):
@@ -286,15 +304,8 @@ class Electromon():
 		print 'Electromon!'
 		print '==========='
 		self.gpioTimeReader = GPIOTimeReader(7)
-		self.flashDetector = FlashDetector(self.gpioTimeReader)
 		self.led = GPIOLed(8)
-
-		#self.led.setOn()
-		#time.sleep(1)
-		#self.led.setOff()
-		#time.sleep(2)
-		self.ledBlinker = LedBlinker(self.led)
-		#self.ledBlinker.blink(10)
+		self.flashDetector = FlashDetector(self.gpioTimeReader, self.led)
 		self.sliceDurationInS = 5
 		#self.flashCounter = PerTimeSliceFlashCounter(self.sliceDurationInS)
 		self.flashCountSender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon", "A");
@@ -353,7 +364,7 @@ class Electromon():
 	def cleanup(self):
 		print 'CLEANUP!'
 		self.flashDetector.cleanup()
-		self.ledBlinker.cleanup()
+		
 
 def main():
 	electromon = Electromon()
