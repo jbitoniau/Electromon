@@ -35,6 +35,58 @@ if platform.system()=='Linux':
 			print '!!!!!!!!!!!!!!cleanup'
 			GPIO.cleanup()
 
+	class GPIOLed():
+		def __init__(self, pin):
+			print "GPIO LED"
+			self.pin = pin
+			GPIO.setmode(GPIO.BOARD)
+			GPIO.setup(pin, GPIO.OUT)
+
+		def setOn(self):
+			GPIO.output(self.pin, GPIO.HIGH)
+		
+		def setOff(self):
+			GPIO.output(self.pin, GPIO.LOW)
+			
+		def cleanup(self):
+			self.setOff()
+			GPIO.cleanup()
+
+	class LedBlinker(threading.Thread):
+		def __init__(self, led):
+			threading.Thread.__init__(self)
+			self.stopRequest = False
+			self.led = led
+			self.blinkDuration = -1
+			self.condition = threading.Condition()
+			self.start()
+
+		def blink(self, sec):
+			if self.blinkDuration!=-1:
+				return False
+			self.condition.acquire()
+			self.blinkDuration = sec
+			self.condition.notify()
+			self.condition.release()
+			return True
+
+		def run(self):
+			while True and not self.stopRequest:
+				self.condition.acquire()
+				if self.blinkDuration!=-1:
+					self.led.setOn()
+					time.sleep(self.blinkDuration)
+					self.led.setOff()
+					self.blinkDuration=-1
+				self.condition.wait()
+				self.condition.release()
+			
+		def cleanup(self):
+			self.stopRequest = True
+			self.blink(0)
+			self.join()
+			self.led.cleanup()
+
 else:
 	class GPIOTimeReader():
 
@@ -189,6 +241,7 @@ class FlashCountSender():
 		self.sendTries = 0
 		self.initialize()
 
+
 	def initialize(self):
 		try:
 			print 'Sndr: initializing...'
@@ -234,6 +287,14 @@ class Electromon():
 		print '==========='
 		self.gpioTimeReader = GPIOTimeReader(7)
 		self.flashDetector = FlashDetector(self.gpioTimeReader)
+		self.led = GPIOLed(8)
+
+		#self.led.setOn()
+		#time.sleep(1)
+		#self.led.setOff()
+		#time.sleep(2)
+		self.ledBlinker = LedBlinker(self.led)
+		#self.ledBlinker.blink(10)
 		self.sliceDurationInS = 5
 		#self.flashCounter = PerTimeSliceFlashCounter(self.sliceDurationInS)
 		self.flashCountSender = FlashCountSender('Electromon-9ec05e526bcd.json', "Electromon", "A");
@@ -292,6 +353,7 @@ class Electromon():
 	def cleanup(self):
 		print 'CLEANUP!'
 		self.flashDetector.cleanup()
+		self.ledBlinker.cleanup()
 
 def main():
 	electromon = Electromon()
