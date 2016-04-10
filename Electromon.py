@@ -187,8 +187,7 @@ class FlashDetector(threading.Thread):
 				if ( lastDelta>0 and delta<0 ):
 					# A flash is detected when the signal was increasing and is now decreasing
 					nowTime = datetime.datetime.now()
-					#print "flash! #" + str(len(self.flashTimes)) + " " + nowTime.strftime('%d/%m/%Y %H:%M:%S') 
-					print "Dtor:> " + nowTime.strftime('%d/%m/%Y %H:%M:%S')
+					#print "Dtor:> " + nowTime.strftime('%d/%m/%Y %H:%M:%S')
 					with self.lock:
 						self.flashTimes.append( nowTime )
 						self.ledBlinker.blink(0.2)
@@ -351,8 +350,8 @@ class Electromon():
 					else:
 						flashCounts.append( (sliceStartDateTime, 0) ) 
 			
-				for flashCount in flashCounts:
-					print "Emon:>   " + flashCount[0].strftime('%d/%m/%Y %H:%M:%S') + " => " + str(flashCount[1])
+				#for flashCount in flashCounts:
+				#	print "Emon:>   " + flashCount[0].strftime('%d/%m/%Y %H:%M:%S') + " => " + str(flashCount[1])
 				
 				# Send flash counts
 				sentOK = self.flashCountSender.sendFlashCounts( flashCounts )
