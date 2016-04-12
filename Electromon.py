@@ -204,7 +204,7 @@ class FlashDetector(threading.Thread):
 		return flashTimes
 
 	def cleanup(self):
-		print('!!!!!!!!!!!!!!!!cleanup in flash')
+		print "FlashDetector cleanup"
 		self.stopRequest = True
 		self.join()
 		self.gpioTimeReader.cleanup()
@@ -212,19 +212,18 @@ class FlashDetector(threading.Thread):
 
 
 def getTimeSliceIndex( dateTime, sliceDurationInS ):
-	numSeconds = (dateTime.hour * 3600) + (dateTime.minute * 60) + (dateTime.second) + (dateTime.microsecond/1000000)
+	epoch = datetime.datetime(1970, 1, 1)
+	delta = dateTime-epoch
+	numSeconds = delta.days*(3600*24) + delta.seconds
 	timeSliceNumber = int(numSeconds / sliceDurationInS)
 	return timeSliceNumber
 
-# Return a tuple hours, minutes, seconds
-def getTimeSliceStartTime( timeSliceIndex, sliceDurationInS ):
+def getTimeSliceStartDateTime( timeSliceIndex, sliceDurationInS ):
 	numSeconds = timeSliceIndex * sliceDurationInS
-	hours = numSeconds / 3600
-	numSeconds -= hours*3600
-	minutes = numSeconds / 60
-	numSeconds -= minutes * 60 
-	seconds = numSeconds
-	return (hours, minutes, seconds)
+	delta = datetime.timedelta( 0, numSeconds, 0)
+	epoch = datetime.datetime(1970, 1, 1)
+	startTime = epoch + delta
+	return startTime
 
 #class PerTimeSliceFlashCounter():
 #	def __init__(self, timeSliceDurationInS ):
@@ -265,8 +264,11 @@ class FlashCountSender():
 			json_key = json.load(open(self.jsonFileName))
 			scope = ['https://spreadsheets.google.com/feeds']
 			credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
+			print "1"
 			gc = gspread.authorize(credentials)
+			print "2"
 			spreadsheet = gc.open(self.spreadsheetName)
+			print "3"
 			self.worksheet = spreadsheet.worksheet(self.worksheetName)
 		except:
 			print "Sndr: initializing error!"
@@ -338,12 +340,9 @@ class Electromon():
 				# Go through each past time-slices (stop before the current one) and 
 				# prepare the final list of flash counts (per slice start datetime)
 				# If a slice didn't have any flash put down a zero for it
-				
-				sliceStartDate =   datetime.datetime.now().date()		# CRAPPY!!!
 				for sliceIndex in range(lastTimeSliceIndex, timeSliceIndex):
 					
-					sliceStartTime = getTimeSliceStartTime( sliceIndex, self.sliceDurationInS )
-					sliceStartDateTime = datetime.datetime( sliceStartDate.year, sliceStartDate.month, sliceStartDate.day, sliceStartTime[0], sliceStartTime[1], sliceStartTime[2] )
+					sliceStartDateTime = getTimeSliceStartDateTime( sliceIndex, self.sliceDurationInS )
 					if perTimeSliceFlashes.has_key(sliceIndex):
 						flashCounts.append( (sliceStartDateTime, perTimeSliceFlashes[sliceIndex]) ) 
 						del perTimeSliceFlashes[sliceIndex]
